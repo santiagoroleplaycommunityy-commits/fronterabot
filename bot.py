@@ -1,53 +1,34 @@
-import discord
-from discord.ext import commands
 import asyncio
 import io
-import os
-from dotenv import load_dotenv
-
-load_dotenv()  # lee .env en tu PC; en Railway usa las variables del panel
-TOKEN = os.getenv("MTU0ODY4ODIyOTY3MzQ3MjA1MQ.GpKGtx.d5ldDjPdZ_a22dF4Wz_mLl8HqDBtsaeYjnHYu4")
-
-# ...todo tu código...
-
-bot.run(TOKEN)
-
-intents = discord.Intents.default()
-intents.message_content = True  # necesario para los comandos con !
-
-bot = commands.Bot(command_prefix="!", intents=intents)
-
-@bot.event
-async def on_ready():
-    await bot.tree.sync()  # sincroniza los slash commands
-    print(f"Bot conectado como {bot.user}")
-
-@bot.hybrid_command(name="ejemplo", description="Comando de ejemplo")
-async def ejemplo(ctx):
-    embed = discord.Embed(
-        title="Título",
-        description="Descripción",
-        color=discord.Color.red()
-    )
-    await ctx.send(embed=embed)
-
 import json
 import os
 
 import discord
 from discord import app_commands
 from discord.ext import commands
+from dotenv import load_dotenv
 
-# ================== CONFIGURACIÓN ==================
-TOKEN = "MTU0ODY4ODIyOTY3MzQ3MjA1MQ.GpKGtx.d5ldDjPdZ_a22dF4Wz_mLl8HqDBtsaeYjnHYu4"
+# ======================================================
+#                    CONFIGURACIÓN
+# ======================================================
+load_dotenv()  # En tu PC lee .env; en Railway usa las Variables del panel
+TOKEN = os.getenv("DISCORD_TOKEN")
+
+# Carpeta donde se guardan los .json. En Railway, si montas un Volume en /data,
+# agrega la variable DATA_DIR=/data para que los datos no se borren al redesplegar.
+DATA_DIR = os.getenv("DATA_DIR", ".")
+os.makedirs(DATA_DIR, exist_ok=True)
+
 ROL_STAFF_ID = 1541949119197872142
 CANAL_URL = "https://discord.com/channels/1491640463738933349/1541933557880979526"
 BANNER_URL = "https://media.discordapp.net/attachments/1499888766968397967/1573126085095198882/CHER_BANNER_1.png?ex=6b00df55&is=6aff8dd5&hm=2d9ae851c4e303d89e6b104268c0a1315726c3be308fd6c686d02ff82893c658&format=webp&quality=lossless"
 COLOR_ACENTO = 1843769
-ARCHIVO = "encuestas.json"
-# ===================================================
+ARCHIVO = os.path.join(DATA_DIR, "encuestas.json")
 
-# ---------- Guardado de votos (sobrevive reinicios) ----------
+
+# ======================================================
+#                 GUARDADO DE ENCUESTAS
+# ======================================================
 def cargar():
     if os.path.exists(ARCHIVO):
         with open(ARCHIVO, "r", encoding="utf-8") as f:
@@ -67,7 +48,9 @@ def es_staff(usuario) -> bool:
     return any(r.id == ROL_STAFF_ID for r in getattr(usuario, "roles", []))
 
 
-# ---------- Mensaje de la encuesta ----------
+# ======================================================
+#                       ENCUESTA
+# ======================================================
 class EncuestaView(discord.ui.LayoutView):
     def __init__(self, datos: dict):
         super().__init__(timeout=None)
@@ -170,17 +153,25 @@ class EncuestaView(discord.ui.LayoutView):
             await interaction.followup.send(parte, ephemeral=True)
 
 
-# ---------- Bot ----------
+# ======================================================
+#                          BOT
+# ======================================================
 class MiBot(commands.Bot):
     async def setup_hook(self):
-        # Reactiva los botones de encuestas anteriores tras reiniciar el bot
+        # Encuestas: reactiva los botones tras reiniciar el bot
         for msg_id, datos in encuestas.items():
             self.add_view(EncuestaView(datos), message_id=int(msg_id))
+        # Panel y tickets
+        self.add_view(PanelView())
+        for datos in db_tickets["tickets"].values():
+            if datos.get("mensaje_id"):
+                self.add_view(TicketView(datos), message_id=datos["mensaje_id"])
+        # Registra los slash commands
         await self.tree.sync()
 
 
 intents = discord.Intents.default()
-intents.message_content = True
+intents.message_content = True  # necesario para los comandos con !
 bot = MiBot(command_prefix="!", intents=intents)
 
 
@@ -189,6 +180,7 @@ async def on_ready():
     print(f"Bot conectado como {bot.user}")
 
 
+# ---------- Comando !encuesta ----------
 @bot.hybrid_command(name="encuesta", description="Abre una encuesta de apertura de servidor")
 @app_commands.describe(votos="Cantidad de votos que se desea alcanzar")
 @commands.has_role(ROL_STAFF_ID)
@@ -223,17 +215,6 @@ async def encuesta_error(ctx: commands.Context, error):
         await ctx.send("Uso correcto: `!encuesta <cantidad de votos>`", ephemeral=True)
     else:
         raise error
-class MiBot(commands.Bot):
-    async def setup_hook(self):
-        # Encuestas
-        for msg_id, datos in encuestas.items():
-            self.add_view(EncuestaView(datos), message_id=int(msg_id))
-        # Panel y tickets
-        self.add_view(PanelView())
-        for datos in db_tickets["tickets"].values():
-            if datos.get("mensaje_id"):
-                self.add_view(TicketView(datos), message_id=datos["mensaje_id"])
-        await self.tree.sync()
 
 
 # ======================================================
@@ -242,7 +223,7 @@ class MiBot(commands.Bot):
 NOMBRE_CATEGORIA = "🎫 TICKETS"      # categoría privada que se crea sola
 LOG_CANAL_ID = 0                      # ID de un canal de logs (0 = sin transcripciones)
 BANNER_TICKETS_URL = "https://media.discordapp.net/attachments/1499888766968397967/1573129022257500290/CHER_BANNER_2.png?ex=6b00e212&is=6aff9092&hm=0bdd5b828383f3b6cb66b7f87d053e3e580273da10591840bc5f3cdbad6d854b&format=webp&quality=lossless"
-ARCHIVO_TICKETS = "tickets.json"
+ARCHIVO_TICKETS = os.path.join(DATA_DIR, "tickets.json")
 FOOTER = "Mayson Studios Todos sus derechos reservados © 2026"
 
 CORTO = discord.TextStyle.short
@@ -622,11 +603,6 @@ async def panel_error(ctx: commands.Context, error):
 
 
 # ======================================================
-#                   FIN DE TICKETS
-# ======================================================
-
-
-# ======================================================
 #                  COMANDO DE CIERRE
 # ======================================================
 BANNER_CIERRE_URL = "https://media.discordapp.net/attachments/1499888766968397967/1573354624721748038/BANNER_EMBED.png?ex=6b01b42e&is=6b0062ae&hm=889b3ead3c8a6bef0f98552c43828fe3ec12898a64ab43bcfe63ade74fe32c89&format=webp&quality=lossless&width=1280&height=54"
@@ -679,6 +655,11 @@ async def cierre_error(ctx: commands.Context, error):
 
 
 # ======================================================
-#                FIN COMANDO DE CIERRE
+#                      INICIO
 # ======================================================
-bot.run("MTU0ODY4ODIyOTY3MzQ3MjA1MQ.GpKGtx.d5ldDjPdZ_a22dF4Wz_mLl8HqDBtsaeYjnHYu4")
+if not TOKEN:
+    raise RuntimeError(
+        "Falta la variable DISCORD_TOKEN. Agrégala en Railway (Variables) o en tu archivo .env."
+    )
+
+bot.run(MTU0ODY4ODIyOTY3MzQ3MjA1MQ.Grqrjs.1JvIBRsm-xJqlJ1yD_kq9q4AQhGpUA76m3YhD8)
