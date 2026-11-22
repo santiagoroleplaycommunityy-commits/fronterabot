@@ -662,4 +662,4 @@ if not TOKEN:
         "Falta la variable DISCORD_TOKEN. Agrégala en Railway (Variables) o en tu archivo .env."
     )
 
-bot.run(MTU0ODY4ODIyOTY3MzQ3MjA1MQ.Grqrjs.1JvIBRsm-xJqlJ1yD_kq9q4AQhGpUA76m3YhD8)
+bot.run(TOKEN)
